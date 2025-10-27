@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import cross_origin
 import psycopg2
 import psycopg2.extras
 from werkzeug.security import check_password_hash
@@ -10,25 +10,30 @@ from datetime import datetime, timedelta, timezone
 from calendar import monthrange
 
 # =========================================================
-# 🔹 Configurações Flask e CORS (100% compatível com Railway)
+# 🔹 Configurações Flask e CORS (totalmente compatível com Railway)
 # =========================================================
 app = Flask(__name__)
 
-# Ler a variável CORS_ORIGINS do .env e converter em lista
-origins_env = os.getenv("CORS_ORIGINS", "")
-origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+# 🔹 Adiciona headers CORS manualmente após cada resposta
+@app.after_request
+def aplicar_cors(response):
+    allowed_origin = os.getenv("CORS_ORIGINS", "https://incredible-nature-production.up.railway.app")
+    response.headers.add("Access-Control-Allow-Origin", allowed_origin)
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+    response.headers.add("Access-Control-Allow-Credentials", "true")
+    return response
 
-# Caso não tenha sido definida, usa localhost como fallback
-if not origins:
-    origins = ["http://localhost:3000"]
-
-CORS(
-    app,
-    origins=origins,
-    allow_headers=["Content-Type", "Authorization"],
-    supports_credentials=True,
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-)
+# 🔹 Rota genérica para interceptar preflight (OPTIONS)
+@app.route("/api/<path:path>", methods=["OPTIONS"])
+@cross_origin()
+def preflight(path):
+    response = jsonify({"status": "ok"})
+    response.headers.add("Access-Control-Allow-Origin", os.getenv("CORS_ORIGINS", "*"))
+    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
+    response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+    response.headers.add("Access-Control-Allow-Credentials", "true")
+    return response
 
 # =========================================================
 # 🔹 Configurações gerais
