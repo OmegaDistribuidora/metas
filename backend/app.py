@@ -339,9 +339,14 @@ def metas_equipe():
     return jsonify(metas)
 
 # =========================================================
-# 🔹 Execução
+# 🔹 Execução (COM A CORREÇÃO DA PORTA)
 # =========================================================
 if __name__ == "__main__":
     debug_env = os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
-    print("Servidor iniciado em http://localhost:5000")
-    app.run(host="0.0.0.0", port=5000, debug=debug_env)
+    
+    # Pega a porta da variável de ambiente $PORT (definida pelo Railway)
+    # O padrão é 5000 se a variável PORT não for encontrada (para rodar local)
+    port = int(os.getenv("PORT", 5000)) 
+    
+    print(f"Servidor iniciado em http://0.0.0.0:{port}")
+    app.run(host="0.0.0.0", port=port, debug=debug_env)
