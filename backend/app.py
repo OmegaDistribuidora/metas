@@ -10,20 +10,25 @@ from datetime import datetime, timedelta, timezone
 from calendar import monthrange
 
 # =========================================================
-# 🔹 Configurações Flask e CORS
+# 🔹 Configurações Flask e CORS (100% compatível com Railway)
 # =========================================================
 app = Flask(__name__)
 
-# 🚀 CORS configurado explicitamente para frontend no Railway e localhost
-CORS(app, resources={r"/*": {
-    "origins": [
-        "https://incredible-nature-production.up.railway.app",
-        "http://localhost:3000"
-    ],
-    "allow_headers": "*",
-    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    "supports_credentials": True
-}})
+# Ler a variável CORS_ORIGINS do .env e converter em lista
+origins_env = os.getenv("CORS_ORIGINS", "")
+origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+
+# Caso não tenha sido definida, usa localhost como fallback
+if not origins:
+    origins = ["http://localhost:3000"]
+
+CORS(
+    app,
+    origins=origins,
+    allow_headers=["Content-Type", "Authorization"],
+    supports_credentials=True,
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+)
 
 # =========================================================
 # 🔹 Configurações gerais
@@ -115,6 +120,7 @@ def login():
         }
     })
 
+
 @app.route("/api/subordinados", methods=["GET"])
 @autenticar
 def listar_subordinados():
@@ -137,6 +143,7 @@ def listar_subordinados():
     subordinados = [dict(x) for x in cur.fetchall()]
     conn.close()
     return jsonify(subordinados)
+
 
 # =========================================================
 # 🔹 Criar uma única meta
@@ -194,6 +201,7 @@ def criar_meta():
         conn.close()
 
     return jsonify({"success": True, "message": "Meta salva com sucesso"})
+
 
 # =========================================================
 # 🔹 Criar metas em lote
@@ -260,6 +268,7 @@ def criar_metas_lote():
 
     return jsonify({"success": True, "message": "Metas salvas com sucesso"})
 
+
 # =========================================================
 # 🔹 Consultar metas do usuário
 # =========================================================
@@ -295,6 +304,7 @@ def minhas_metas():
     metas = [dict(x) for x in cur.fetchall()]
     conn.close()
     return jsonify(metas)
+
 
 # =========================================================
 # 🔹 Consultar metas da equipe
