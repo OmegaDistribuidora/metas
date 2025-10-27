@@ -8,14 +8,14 @@ import jwt
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 from calendar import monthrange
-from dotenv import load_dotenv
+# from dotenv import load_dotenv  <- REMOVIDO
 
 # =========================================================
 # 🔹 Configurações Flask e CORS
 # =========================================================
-load_dotenv()
+# load_dotenv() <- REMOVIDO. O Railway injeta as variáveis.
 app = Flask(__name__)
-# CORS origins via env (default: *)
+# Agora, os.getenv() vai ler as variáveis corretas do painel do Railway
 CORS(app, resources={r"/*": {"origins": os.getenv("CORS_ORIGINS", "*")}}, supports_credentials=True)
 
 # =========================================================
@@ -157,7 +157,6 @@ def criar_meta():
     data_inicio = f"{ano}-{mes_num:02d}-01"
     data_fim = f"{ano}-{mes_num:02d}-{ultimo_dia:02d}"
 
-    # Normaliza codfornec da Meta Geral como 1
     try:
         if industria and str(industria).strip().lower() == "meta geral":
             codfornec = 1
@@ -226,7 +225,6 @@ def criar_metas_lote():
             data_inicio = f"{ano}-{mes_num:02d}-01"
             data_fim = f"{ano}-{mes_num:02d}-{ultimo_dia:02d}"
 
-            # Normaliza codfornec da Meta Geral como 1
             try:
                 if industria and str(industria).strip().lower() == "meta geral":
                     codfornec = 1
@@ -338,15 +336,8 @@ def metas_equipe():
     conn.close()
     return jsonify(metas)
 
+# =V=======================================================
+# 🔹 Execução (REMOVIDO)
 # =========================================================
-# 🔹 Execução (COM A CORREÇÃO DA PORTA)
-# =========================================================
-if __name__ == "__main__":
-    debug_env = os.getenv("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
-    
-    # Pega a porta da variável de ambiente $PORT (definida pelo Railway)
-    # O padrão é 5000 se a variável PORT não for encontrada (para rodar local)
-    port = int(os.getenv("PORT", 5000)) 
-    
-    print(f"Servidor iniciado em http://0.0.0.0:{port}")
-    app.run(host="0.0.0.0", port=port, debug=debug_env)
+# if __name__ == "__main__":
+#     ... (bloco inteiro removido, pois Gunicorn/Procfile cuidam disso)
