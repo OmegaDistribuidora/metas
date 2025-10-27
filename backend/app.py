@@ -8,15 +8,22 @@ import jwt
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 from calendar import monthrange
-# from dotenv import load_dotenv  <- REMOVIDO
 
 # =========================================================
 # 🔹 Configurações Flask e CORS
 # =========================================================
-# load_dotenv() <- REMOVIDO. O Railway injeta as variáveis.
 app = Flask(__name__)
-# Agora, os.getenv() vai ler as variáveis corretas do painel do Railway
-CORS(app, resources={r"/*": {"origins": os.getenv("CORS_ORIGINS", "*")}}, supports_credentials=True)
+
+# 🚀 CORS configurado explicitamente para frontend no Railway e localhost
+CORS(app, resources={r"/*": {
+    "origins": [
+        "https://incredible-nature-production.up.railway.app",
+        "http://localhost:3000"
+    ],
+    "allow_headers": "*",
+    "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "supports_credentials": True
+}})
 
 # =========================================================
 # 🔹 Configurações gerais
@@ -335,9 +342,3 @@ def metas_equipe():
     metas = [dict(x) for x in cur.fetchall()]
     conn.close()
     return jsonify(metas)
-
-# =V=======================================================
-# 🔹 Execução (REMOVIDO)
-# =========================================================
-# if __name__ == "__main__":
-#     ... (bloco inteiro removido, pois Gunicorn/Procfile cuidam disso)
