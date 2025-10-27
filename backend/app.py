@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request, jsonify
-from flask_cors import cross_origin
+from flask_cors import CORS
 import psycopg2
 import psycopg2.extras
 from werkzeug.security import check_password_hash
@@ -8,46 +8,33 @@ import jwt
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 from calendar import monthrange
+# from dotenv import load_dotenv  <- CORRETO, REMOVIDO
 
 # =========================================================
-# 🔹 Configurações Flask e CORS (compatível com Railway)
+# 🔹 Configurações Flask e CORS
 # =========================================================
 app = Flask(__name__)
+# os.getenv() vai ler as variáveis do painel do Railway
+CORS(app, resources={r"/*": {"origins": os.getenv("CORS_ORIGINS", "*")}}, supports_credentials=True)
 
-# 🔹 Adiciona headers CORS manualmente após cada resposta
-@app.after_request
-def aplicar_cors(response):
-    allowed_origin = os.getenv("CORS_ORIGINS", "https://incredible-nature-production.up.railway.app")
-    response.headers.add("Access-Control-Allow-Origin", allowed_origin)
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-    response.headers.add("Access-Control-Allow-Credentials", "true")
-    return response
+# =========================================================
+# 🔹 ROTA DE DEBUG (NOVA)
+# =========================================================
+@app.route("/api/debug-vars", methods=["GET"])
+def debug_vars():
+    # Vamos ler a variável CORS_ORIGINS exatamente como o app lê
+    cors_value = os.getenv("CORS_ORIGINS", "!!! A VARIÁVEL 'CORS_ORIGINS' NÃO FOI ENCONTRADA !!!")
+    
+    # Vamos checar as outras variáveis também
+    db_host_value = os.getenv("DB_HOST", "!!! A VARIÁVEL 'DB_HOST' NÃO FOI ENCONTRADA !!!")
+    db_user_value = os.getenv("DB_USER", "!!! A VARIÁVEL 'DB_USER' NÃO FOI ENCONTRADA !!!")
 
-# 🔹 Rota genérica para interceptar preflight (OPTIONS)
-@app.before_request
-def handle_options():
-    if request.method == "OPTIONS":
-        resp = app.make_default_options_response()
-        headers = resp.headers
-
-        allowed_origin = os.getenv("CORS_ORIGINS", "https://incredible-nature-production.up.railway.app")
-        headers["Access-Control-Allow-Origin"] = allowed_origin
-        headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
-        headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
-        headers["Access-Control-Allow-Credentials"] = "true"
-
-        return resp
-
-@app.route("/api/<path:path>", methods=["OPTIONS"])
-@cross_origin()
-def preflight(path):
-    response = jsonify({"status": "ok"})
-    response.headers.add("Access-Control-Allow-Origin", os.getenv("CORS_ORIGINS", "*"))
-    response.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization")
-    response.headers.add("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-    response.headers.add("Access-Control-Allow-Credentials", "true")
-    return response
+    return jsonify({
+        "message": "Debug de Variáveis de Ambiente do Backend",
+        "VALOR_LIDO_DE_CORS_ORIGINS": cors_value,
+        "VALOR_LIDO_DE_DB_HOST": db_host_value,
+        "VALOR_LIDO_DE_DB_USER": db_user_value
+    })
 
 # =========================================================
 # 🔹 Configurações gerais
@@ -139,7 +126,6 @@ def login():
         }
     })
 
-
 @app.route("/api/subordinados", methods=["GET"])
 @autenticar
 def listar_subordinados():
@@ -220,7 +206,6 @@ def criar_meta():
 
     return jsonify({"success": True, "message": "Meta salva com sucesso"})
 
-
 # =========================================================
 # 🔹 Criar metas em lote
 # =========================================================
@@ -285,7 +270,6 @@ def criar_metas_lote():
         conn.close()
 
     return jsonify({"success": True, "message": "Metas salvas com sucesso"})
-
 
 # =========================================================
 # 🔹 Consultar metas do usuário
@@ -370,10 +354,9 @@ def metas_equipe():
     conn.close()
     return jsonify(metas)
 
+# =========================================================
+# 🔹 Execução (REMOVIDO)
+# =========================================================
+# if __name__ == "__main__":
+#     ... (bloco inteiro removido, pois Gunicorn/Procfile cuidam disso)
 
-# =========================================================
-# 🔹 Execução no Railway
-# =========================================================
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8080))
-    app.run(host="0.0.0.0", port=port)
