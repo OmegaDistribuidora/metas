@@ -1,0 +1,38 @@
+export const INDUSTRIAS = [
+  "Bombril",
+  "Marata",
+  "JDE",
+  "Bom Principio",
+  "Stela D'Oro",
+  "Realeza",
+  "Panasonic",
+  "Mili",
+  "Q-Odor",
+  "Assim",
+  "Albany",
+  "Mat Inset",
+  "Florence",
+  "CCM",
+  "Gallo",
+  "Elgin",
+];
+
+export const CODIGOS_FORNECEDOR = {
+  Bombril: 117,
+  Marata: 967,
+  "Bom Principio": 6212,
+  "Stela D'Oro": 6154,
+  Realeza: 2340,
+  Panasonic: 4201,
+  Mili: 3157,
+  "Q-Odor": 5088,
+  Assim: 2170,
+  Albany: 1281,
+  "Mat Inset": 2269,
+  Florence: 3209,
+  CCM: 5110,
+  Gallo: 5514,
+  Elgin: 4698,
+  JDE: 0,
+};
+
