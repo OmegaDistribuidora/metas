@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from calendar import monthrange
 
 # =========================================================
-# 🔹 Configurações Flask e CORS (totalmente compatível com Railway)
+# 🔹 Configurações Flask e CORS (compatível com Railway)
 # =========================================================
 app = Flask(__name__)
 
@@ -25,6 +25,20 @@ def aplicar_cors(response):
     return response
 
 # 🔹 Rota genérica para interceptar preflight (OPTIONS)
+@app.before_request
+def handle_options():
+    if request.method == "OPTIONS":
+        resp = app.make_default_options_response()
+        headers = resp.headers
+
+        allowed_origin = os.getenv("CORS_ORIGINS", "https://incredible-nature-production.up.railway.app")
+        headers["Access-Control-Allow-Origin"] = allowed_origin
+        headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+        headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS"
+        headers["Access-Control-Allow-Credentials"] = "true"
+
+        return resp
+
 @app.route("/api/<path:path>", methods=["OPTIONS"])
 @cross_origin()
 def preflight(path):
@@ -149,7 +163,6 @@ def listar_subordinados():
     conn.close()
     return jsonify(subordinados)
 
-
 # =========================================================
 # 🔹 Criar uma única meta
 # =========================================================
@@ -234,126 +247,4 @@ def criar_metas_lote():
             mes = m.get("mes")
             ano = int(m.get("ano"))
 
-            if isinstance(mes, int):
-                mes_texto = MESES_MAP.get(mes, "Out")
-                mes_num = mes
-            else:
-                mes_texto = mes
-                mes_num = MESES_INV.get(mes, 10)
-
-            _, ultimo_dia = monthrange(ano, mes_num)
-            data_inicio = f"{ano}-{mes_num:02d}-01"
-            data_fim = f"{ano}-{mes_num:02d}-{ultimo_dia:02d}"
-
-            try:
-                if industria and str(industria).strip().lower() == "meta geral":
-                    codfornec = 1
-            except Exception:
-                pass
-
-            cur.execute("""
-                INSERT INTO metas 
-                (usuario_id, codfornec, industria, valor_financeiro, valor_positivacao,
-                 mes, ano, data_inicio, data_fim, criado_por)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (usuario_id, codfornec, industria, mes, ano)
-                DO UPDATE SET
-                    valor_financeiro = EXCLUDED.valor_financeiro,
-                    valor_positivacao = EXCLUDED.valor_positivacao,
-                    atualizado_em = CURRENT_TIMESTAMP
-            """, (usuario_id, codfornec, industria, valor_financeiro, valor_positivacao,
-                  mes_texto, ano, data_inicio, data_fim, criador))
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        return jsonify({"error": str(e)}), 500
-    finally:
-        conn.close()
-
-    return jsonify({"success": True, "message": "Metas salvas com sucesso"})
-
-
-# =========================================================
-# 🔹 Consultar metas do usuário
-# =========================================================
-@app.route("/api/metas/minhas", methods=["GET"])
-@autenticar
-def minhas_metas():
-    user_id = request.user["user_id"]
-    role = request.user["role"]
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-    if role in ("coordenador", "supervisor", "rca"):
-        cur.execute("""
-            SELECT industria, codfornec, valor_financeiro, valor_positivacao, mes, ano, data_inicio, data_fim
-            FROM metas
-            WHERE usuario_id = %s
-            ORDER BY ano DESC, mes DESC, industria
-        """, (user_id,))
-    elif role == "gerente":
-        cur.execute("""
-            SELECT u.username AS usuario_nome, m.industria, m.codfornec,
-                   m.valor_financeiro, m.valor_positivacao, m.mes, m.ano, m.data_inicio, m.data_fim
-            FROM metas m
-            JOIN users u ON u.id = m.usuario_id
-            WHERE u.gerente_id = %s
-            ORDER BY u.username, m.ano DESC, m.mes DESC
-        """, (user_id,))
-    else:
-        conn.close()
-        return jsonify([])
-
-    metas = [dict(x) for x in cur.fetchall()]
-    conn.close()
-    return jsonify(metas)
-
-
-# =========================================================
-# 🔹 Consultar metas da equipe
-# =========================================================
-@app.route("/api/metas/equipe", methods=["GET"])
-@autenticar
-def metas_equipe():
-    user_id = request.user["user_id"]
-    role = request.user["role"]
-
-    conn = get_conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
-    if role == "gerente":
-        cur.execute("""
-            SELECT u.username AS usuario_nome, m.industria, m.codfornec,
-                   m.valor_financeiro, m.valor_positivacao, m.mes, m.ano, m.data_inicio, m.data_fim
-            FROM metas m
-            JOIN users u ON u.id = m.usuario_id
-            WHERE u.gerente_id = %s
-            ORDER BY u.username, m.ano DESC, m.mes DESC
-        """, (user_id,))
-    elif role == "coordenador":
-        cur.execute("""
-            SELECT u.username AS usuario_nome, m.industria, m.codfornec,
-                   m.valor_financeiro, m.valor_positivacao, m.mes, m.ano, m.data_inicio, m.data_fim
-            FROM metas m
-            JOIN users u ON u.id = m.usuario_id
-            WHERE u.coordenador_id = %s
-            ORDER BY u.username, m.ano DESC, m.mes DESC
-        """, (user_id,))
-    elif role == "supervisor":
-        cur.execute("""
-            SELECT u.username AS usuario_nome, m.industria, m.codfornec,
-                   m.valor_financeiro, m.valor_positivacao, m.mes, m.ano, m.data_inicio, m.data_fim
-            FROM metas m
-            JOIN users u ON u.id = m.usuario_id
-            WHERE u.supervisor_id = %s
-            ORDER BY u.username, m.ano DESC, m.mes DESC
-        """, (user_id,))
-    else:
-        conn.close()
-        return jsonify([])
-
-    metas = [dict(x) for x in cur.fetchall()]
-    conn.close()
-    return jsonify(metas)
+            if isinstance(m
