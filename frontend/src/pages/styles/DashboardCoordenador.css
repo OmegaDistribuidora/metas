@@ -411,5 +411,25 @@ p {
   margin-top: 4px;
 }
 
+/* ================================== */
+/* ESTILOS DO TOAST (ADICIONADO)  */
+/* ================================== */
 
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  padding: 15px 20px;
+  background-color: #28a745; /* Verde */
+  color: white;
+  border-radius: 5px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  min-width: 250px;
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
 
+.toast.error {
+  background-color: #dc3545; /* Vermelho */
+}

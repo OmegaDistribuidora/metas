@@ -1,37 +1,112 @@
 import React, { useEffect, useState } from "react";
-import { getMinhasMetas, getSubordinados, criarMetasLote } from "../utils/api";
-import { INDUSTRIAS, CODIGOS_FORNECEDOR } from "../constants/fornecedores";
+// 👇 getMetasEquipe foi adicionado aqui
+import { getMinhasMetas, getSubordinados, criarMetasLote, getMetasEquipe } from "../utils/api";
+import { CODIGOS_FORNECEDOR } from "../constants/fornecedores";
+import { MESES_ORDEM, MESES_MAP } from "../constants/periodo";
 import CurrencyInput from "../components/CurrencyInput.jsx";
 import NumericInput from "../components/NumericInput.jsx";
 import "./styles/DashboardCoordenador.css";
 
+// ==========================================================
+//           👇 INÍCIO DAS DEFINIÇÕES DE INDÚSTRIA 👇
+// ==========================================================
+// (Lógica do "Atacado" mantida para os Supervisores)
+
+const industriasPorCoordenador = {
+  Arleilson: [
+    "Bombril", "Marata", "JDE", "Bom Principio", "Stela D'Oro", "Realeza",
+    "Panasonic", "Mili", "Q-Odor", "Assim", "Albany", "Mat Inset",
+    "Florence", "CCM", "Gallo", "Elgin"
+  ],
+  Marlon: [
+    "Bombril", "Marata", "JDE", "Bom Principio", "Stela D'Oro", "Realeza",
+    "Panasonic", "Mili", "Q-Odor", "Assim", "Albany", "Mat Inset",
+    "Florence", "CCM", "Gallo", "Elgin"
+  ],
+  Genildo: [
+    "Bombril", "Marata", "JDE", "Bom Principio", "Stela D'Oro", "Realeza",
+    "Panasonic", "Mili", "Q-Odor", "Assim", "Albany", "Mat Inset",
+    "Florence", "CCM", "Gallo", "Elgin"
+  ],
+  Televendas: [
+    "Bombril", "Marata", "JDE", "Bom Principio", "Stela D'Oro", "Realeza",
+    "Panasonic", "Mili", "Q-Odor", "Assim", "Albany", "Mat Inset",
+    "Florence", "CCM", "Gallo", "Elgin"
+  ],
+  Atacado: ["Bombril", "Realeza", "Panasonic", "Mili"],
+  "COORDENADOR INTERIOR": [ 
+    "Bombril", "Marata", "JDE", "Bom Principio", "Stela D'Oro", "Realeza",
+    "Panasonic", "Mili", "Q-Odor", "Assim", "Albany", "Mat Inset",
+    "Florence", "CCM", "Gallo", "Elgin"
+  ],
+};
+
+const fallbackIndustrias = industriasPorCoordenador["Arleilson"] || []; 
+
+const calcularTotaisParaView = (metas) => {
+  const totalFin = metas.reduce(
+    (sum, m) => sum + parseFloat(m.financeira || 0),
+    0
+  );
+  const totalPos = metas.reduce(
+    (sum, m) => sum + parseInt(m.positivacao || 0),
+    0
+  );
+  return { financeira: totalFin, positivacao: totalPos };
+};
+// ==========================================================
+//           👆 FIM DAS DEFINIÇÕES DE INDÚSTRIA 👆
+// ==========================================================
+
+
 export default function DashboardCoordenador({ user, onLogout }) {
-  // Metas recebidas do gerente (para o coordenador)
+  // Metas recebidas do gerente
+  const [metasGerenteAll, setMetasGerenteAll] = useState([]);
   const [metasGerente, setMetasGerente] = useState([]);
   const [metaGeralGerente, setMetaGeralGerente] = useState(null);
   const [totaisGerente, setTotaisGerente] = useState({ financeira: 0, positivacao: 0 });
   const [comparativo, setComparativo] = useState(null);
 
-  // Supervisores e tabelas de lancamento por supervisor
+  // Supervisores e tabelas de lancamento
   const [supervisores, setSupervisores] = useState([]);
-  const [supTabelas, setSupTabelas] = useState({}); // { [supId]: [{ industria, financeira, positivacao }] }
-  const [supMetaGeral, setSupMetaGeral] = useState({}); // { [supId]: {financeira, positivacao} }
-  const [supTotais, setSupTotais] = useState({}); // { [supId]: {financeira, positivacao} }
-  const [toast, setToast] = useState(null); // { type: 'success' | 'error', msg: string }
+  // 👇 NOVO ESTADO para guardar dados do banco
+  const [metasEquipeSalvas, setMetasEquipeSalvas] = useState([]);
 
-  // Minhas metas (coordenador) removido: coordenador não lança por indústria
+  // Rascunhos
+  const [supTabelas, setSupTabelas] = useState({}); 
+  const [supMetaGeral, setSupMetaGeral] = useState({}); 
+  const [supTotais, setSupTotais] = useState({}); 
+  const [toast, setToast] = useState(null); 
 
-  // Período com seletor global
-  const MESES_ORDEM = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const MESES_MAP = { Jan:1, Fev:2, Mar:3, Abr:4, Mai:5, Jun:6, Jul:7, Ago:8, Set:9, Out:10, Nov:11, Dez:12 };
+  // Período
   const [mesSelecionado, setMesSelecionado] = useState(MESES_ORDEM[new Date().getMonth()]);
   const [anoSelecionado, setAnoSelecionado] = useState(new Date().getFullYear());
   const [periodo, setPeriodo] = useState({ inicio: "", fim: "" });
 
-  const industrias = INDUSTRIAS;
 
-  // Atualiza período sempre que mês/ano mudarem
+  // ==========================================================
+  //           👇 LÓGICA DE CARREGAMENTO (Hooks) 👇
+  // ==========================================================
+
+  // Hook 1: Carrega Supervisores, Metas Recebidas e Metas Salvas (APENAS UMA VEZ)
   useEffect(() => {
+    async function carregarDadosIniciais() {
+      // Busca tudo em paralelo
+      const [subs, metasMinhas, metasEquipe] = await Promise.all([
+        getSubordinados(),    // Meus supervisores
+        getMinhasMetas(),     // Minhas metas (do Gerente)
+        getMetasEquipe()      // Metas que eu já salvei (para meus Supervisores)
+      ]);
+      setSupervisores(Array.isArray(subs) ? subs : []);
+      setMetasGerenteAll(Array.isArray(metasMinhas) ? metasMinhas : []);
+      setMetasEquipeSalvas(Array.isArray(metasEquipe) ? metasEquipe : []);
+    }
+    carregarDadosIniciais();
+  }, []); // Dependência vazia: roda SÓ UMA VEZ no "mount"
+
+  // Hook 2: Reage a mudanças de Período ou ao término do carregamento de dados
+  useEffect(() => {
+    // 1. Atualiza as datas de Início/Fim do período
     const mesNum = MESES_MAP[mesSelecionado];
     const inicio = new Date(anoSelecionado, mesNum - 1, 1);
     const fim = new Date(anoSelecionado, mesNum, 0);
@@ -39,20 +114,8 @@ export default function DashboardCoordenador({ user, onLogout }) {
       inicio: inicio.toISOString().split("T")[0],
       fim: fim.toISOString().split("T")[0],
     });
-  }, [mesSelecionado, anoSelecionado]);
 
-  // Carrega metas recebidas do gerente (todas) e mantém crú para refiltrar
-  const [metasGerenteAll, setMetasGerenteAll] = useState([]);
-  useEffect(() => {
-    async function carregarGerente() {
-      const data = await getMinhasMetas();
-      setMetasGerenteAll(Array.isArray(data) ? data : []);
-    }
-    carregarGerente();
-  }, []);
-
-  // Refiltra metas do gerente pelo período selecionado
-  useEffect(() => {
+    // 2. Filtra as metas recebidas (do Gerente)
     const filtradas = metasGerenteAll.filter(
       (m) => parseInt(m.ano) === parseInt(anoSelecionado) && m.mes === mesSelecionado
     );
@@ -64,52 +127,131 @@ export default function DashboardCoordenador({ user, onLogout }) {
     const totalPos = indus.reduce((s, m) => s + parseInt(m.valor_positivacao || 0), 0);
     setTotaisGerente({ financeira: totalFin, positivacao: totalPos });
     setComparativo(geral ? parseFloat(geral.valor_financeiro || 0) - totalFin : null);
-  }, [metasGerenteAll, mesSelecionado, anoSelecionado]);
-
-  // Carrega supervisores e inicializa tabelas por supervisor
-  useEffect(() => {
-    async function carregarSup() {
-      const subs = await getSubordinados();
-      const lista = Array.isArray(subs) ? subs : [];
-      setSupervisores(lista);
-      const tab = {}; const mg = {}; const tt = {};
-      lista.forEach(s => {
-        tab[s.id] = industrias.map(ind => ({ industria: ind, financeira: "", positivacao: "" }));
-        mg[s.id] = { financeira: "", positivacao: "" };
-        tt[s.id] = { financeira: 0, positivacao: 0 };
-      });
-      setSupTabelas(tab); setSupMetaGeral(mg); setSupTotais(tt);
+    
+    // 3. Inicializa os rascunhos (para os Supervisores)
+    if (supervisores.length > 0) {
+      inicializarRascunhos(supervisores, mesSelecionado, anoSelecionado, metasEquipeSalvas);
     }
-    carregarSup();
-  }, []);
+    
+  }, [mesSelecionado, anoSelecionado, supervisores, metasGerenteAll, metasEquipeSalvas]); // Roda quando o período muda OU quando os dados carregam
 
-  // Removido: planilha de metas do próprio coordenador
+  // ==========================================================
+  //           👇 LÓGICA DE RASCUNHO (MODIFICADA) 👇
+  // ==========================================================
+  
+  const inicializarRascunhos = (sups, mes, ano, metasSalvas) => {
+    setSupTabelas(prevTabelas => {
+      const newTabelas = { ...prevTabelas }; 
+      setSupMetaGeral(prevMetasGerais => {
+        const newMetasGerais = { ...prevMetasGerais };
+        const newSupTotais = {}; 
+        
+        const mapaBuscaNormalizada = Object.keys(industriasPorCoordenador).reduce((acc, key) => {
+            const buscaKey = key.toLowerCase().replace(/\s/g, ''); 
+            acc[buscaKey] = key;
+            return acc;
+        }, {});
 
-  // Recalculo de totais
-  const recomputeSupTotais = (supId, lista) => {
-    const fin = lista.reduce((s,m)=> s + parseFloat(m.financeira||0), 0);
-    const pos = lista.reduce((s,m)=> s + parseInt(m.positivacao||0), 0);
-    setSupTotais(prev => ({ ...prev, [supId]: { financeira: fin, positivacao: pos } }));
+        sups.forEach(s => { // 's' para supervisor
+            const chave = `${s.id}-${ano}-${mes}`;
+            
+            // 1. Define a lista correta de indústrias (lógica do Atacado)
+            let industrias = fallbackIndustrias; 
+            const nomeNormalizado = (s.nome_completo || s.username || '').toLowerCase();
+            if (nomeNormalizado.includes('atacado')) {
+                industrias = industriasPorCoordenador["Atacado"];
+            } else {
+                const chaveReal = mapaBuscaNormalizada[nomeNormalizado.replace(/\s/g, '')];
+                if (chaveReal) industrias = industriasPorCoordenador[chaveReal];
+                else {
+                    const nomeBruto = (s.nome_completo || s.username);
+                    if (nomeBruto && industriasPorCoordenador[nomeBruto]) {
+                         industrias = industriasPorCoordenador[nomeBruto];
+                    }
+                }
+            }
+            
+            // 2. Verifica se há dados JÁ SALVOS no banco para este supervisor
+            const metasDoSup = metasSalvas.filter(
+              m => m.usuario_id === s.id &&
+                   m.mes === mes &&
+                   parseInt(m.ano) === parseInt(ano)
+            );
+            const metaGeralSalva = metasDoSup.find(m => (m.industria || "").trim().toLowerCase() === "meta geral");
+            const metasIndustriaSalvas = metasDoSup.filter(m => (m.industria || "").trim().toLowerCase() !== "meta geral");
+
+            // 3. Popula a Meta Geral
+            // Prioriza Rascunho > Dados Salvos > Vazio
+            if (!newMetasGerais[chave]) { 
+                if (metaGeralSalva) {
+                    newMetasGerais[chave] = {
+                        financeira: String(metaGeralSalva.valor_financeiro || ""),
+                        positivacao: String(metaGeralSalva.valor_positivacao || "")
+                    };
+                } else {
+                    newMetasGerais[chave] = { financeira: "", positivacao: "" };
+                }
+            } 
+
+            // 4. Popula a Tabela de Indústrias
+            let tabelaFinal;
+            if (newTabelas[chave] && newTabelas[chave].length === industrias.length) {
+                tabelaFinal = newTabelas[chave];
+            } else if (metasIndustriaSalvas.length > 0) {
+                tabelaFinal = industrias.map(ind => {
+                    const metaSalva = metasIndustriaSalvas.find(m => m.industria === ind);
+                    return {
+                      industria: ind,
+                      financeira: metaSalva ? String(metaSalva.valor_financeiro || "") : "",
+                      positivacao: metaSalva ? String(metaSalva.valor_positivacao || "") : ""
+                    };
+                });
+            } else {
+                tabelaFinal = industrias.map(ind => ({
+                    industria: ind, financeira: "", positivacao: ""
+                }));
+            }
+            
+            newTabelas[chave] = tabelaFinal;
+            newSupTotais[s.id] = calcularTotaisParaView(tabelaFinal);
+        });
+        
+        setSupTotais(newSupTotais);
+        return newMetasGerais;
+      });
+      return newTabelas; 
+    });
   };
 
+  // --- Handlers de mudança (sem alteração) ---
   const handleChangeSup = (supId, index, campo, valor) => {
-    const tabela = supTabelas[supId] ? [...supTabelas[supId]] : [];
-    const v = Math.max(0, Number(valor || 0));
-    tabela[index][campo] = isNaN(v) ? "" : String(v);
-    setSupTabelas(prev => ({ ...prev, [supId]: tabela }));
-    recomputeSupTotais(supId, tabela);
+    setSupTabelas(prevSupTabelas => {
+      const chave = `${supId}-${anoSelecionado}-${mesSelecionado}`;
+      const tabela = prevSupTabelas[chave] ? [...prevSupTabelas[chave]] : [];
+      
+      const v = Math.max(0, Number(valor || 0));
+      tabela[index][campo] = isNaN(v) ? "" : String(v);
+
+      recomputeSupTotais(supId, tabela);
+
+      return { ...prevSupTabelas, [chave]: tabela };
+    });
   };
 
-  // Removido: handlers e totais das metas próprias
+  const recomputeSupTotais = (supId, lista) => {
+    const { financeira, positivacao } = calcularTotaisParaView(lista);
+    setSupTotais(prev => ({ ...prev, [supId]: { financeira, positivacao } }));
+  };
 
-  // Salvar metas por supervisor (periodo atual)
+  // --- Função de Salvar (Lógica do Toast já existe) ---
   const salvarMetasSupervisor = async (supId) => {
-    const tabela = supTabelas[supId] || [];
-    // Validação: total das indústrias deve bater (>=) a Meta Geral do supervisor
+    const chave = `${supId}-${anoSelecionado}-${mesSelecionado}`;
+    const tabela = supTabelas[chave] || [];
     const totalAtual = supTotais[supId] || { financeira: 0, positivacao: 0 };
-    const mg = supMetaGeral[supId] || { financeira: 0, positivacao: 0 };
+    const mg = supMetaGeral[chave] || { financeira: 0, positivacao: 0 };
     const faltaFin = Math.max(0, parseFloat(mg.financeira || 0) - parseFloat(totalAtual.financeira || 0));
     const faltaPos = Math.max(0, parseInt(mg.positivacao || 0) - parseInt(totalAtual.positivacao || 0));
+    
     if (faltaFin > 0 || faltaPos > 0) {
       const partes = [];
       if (faltaFin > 0) partes.push(`R$ ${faltaFin.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`);
@@ -129,8 +271,7 @@ export default function DashboardCoordenador({ user, onLogout }) {
       data_fim: periodo.fim,
     }));
 
-    // adiciona Meta Geral do supervisor
-    const mg2 = supMetaGeral[supId] || { financeira: 0, positivacao: 0 };
+    const mg2 = supMetaGeral[chave] || { financeira: 0, positivacao: 0 };
     metasFormatadas.push({
       codfornec: 1,
       industria: "Meta Geral",
@@ -143,17 +284,44 @@ export default function DashboardCoordenador({ user, onLogout }) {
     });
 
     const resp = await criarMetasLote(supId, metasFormatadas);
-    if (resp?.success) setToast({ type: 'success', msg: `Metas de ${supId} salvas com sucesso!` });
-    else setToast({ type: 'error', msg: 'Erro ao salvar metas do supervisor' });
+    if (resp?.success) {
+      setToast({ type: 'success', msg: `Metas de ${supId} salvas com sucesso!` });
+      // 👇 ATUALIZA OS DADOS SALVOS NO ESTADO para refletir a mudança
+      const novasMetasSalvas = [
+        ...metasEquipeSalvas.filter(m => 
+            m.usuario_id !== supId || m.mes !== mesSelecionado || parseInt(m.ano) !== parseInt(anoSelecionado)
+        ), 
+        ...metasFormatadas.map(m => ({...m, usuario_id: supId}))
+      ];
+      setMetasEquipeSalvas(novasMetasSalvas);
+    } else {
+      setToast({ type: 'error', msg: 'Erro ao salvar metas do supervisor' });
+    }
   };
 
-  // Removido: salvar metas próprias do coordenador
-
+  
+  // ==========================================================
+  //           👇 LINHA 'return (' ADICIONADA AQUI 👇
+  // ==========================================================
   return (
     <div className="coordenador-container">
+      {/* ========================================================== */}
+      {/* 👇 BLITZ DE TOAST ATUALIZADO 👇                  */}
+      {/* ========================================================== */}
       {toast && (
-        <div className="toast">{toast.msg}</div>
+        <div 
+          className={`toast ${toast.type === 'error' ? 'error' : ''}`} 
+          onClick={() => setToast(null)}
+        >
+          {toast.msg}
+          <span style={{ cursor: 'pointer', float: 'right', marginLeft: '20px', fontWeight: 'bold' }}>
+            &times;
+          </span>
+        </div>
       )}
+      {/* ========================================================== */}
+
+      
       <header className="topo">
         <h2>Painel do Coordenador</h2>
         <div className="usuario-info">
@@ -195,8 +363,10 @@ export default function DashboardCoordenador({ user, onLogout }) {
       
       <section className="tabela-section">
         <h3>Metas Recebidas do Gerente</h3>
-        {metasGerente.length === 0 ? (
+        {metasGerente.length === 0 && metasGerenteAll.length > 0 ? (
           <p>Nenhuma meta recebida para o periodo atual.</p>
+        ) : metasGerenteAll.length === 0 ? (
+          <p>Carregando metas recebidas...</p>
         ) : (
           <div className="tabela-wrapper">
             <table className="planilha">
@@ -239,75 +409,79 @@ export default function DashboardCoordenador({ user, onLogout }) {
           </div>
         )}
       </section>
-
-      {/* Removido: Minhas Metas por Fornecedor */}
-
       
       <section className="tabela-section bloco-separado">
         <h3>Lançar Metas dos Supervisores</h3>
         {supervisores.length === 0 ? (
           <p>Nenhum supervisor vinculado a voce.</p>
         ) : (
-          supervisores.map((s) => (
-            <div key={s.id} style={{ marginBottom: 24 }}>
-              <h4 style={{ margin: '10px 0' }}>{s.username}</h4>
-              <div className="meta-geral">
-                <h4>Meta Geral do Supervisor</h4>
-                <div className="meta-geral-inputs">
-                  <div>
-                    <label>Meta Financeira (R$)</label>
-                    <input type="number" value={supMetaGeral[s.id]?.financeira || ""} onChange={(e)=> setSupMetaGeral({ ...supMetaGeral, [s.id]: { ...(supMetaGeral[s.id]||{}), financeira: e.target.value } }) } />
-                  </div>
-                  <div>
-                    <label>Meta de Positivacao (Qtd)</label>
-                    <input type="number" value={supMetaGeral[s.id]?.positivacao || ""} onChange={(e)=> setSupMetaGeral({ ...supMetaGeral, [s.id]: { ...(supMetaGeral[s.id]||{}), positivacao: e.target.value } }) } />
+          supervisores.map((s) => {
+            const chave = `${s.id}-${anoSelecionado}-${mesSelecionado}`;
+            const tabelaSupervisor = supTabelas[chave] || []; 
+            const metaGeralSupervisor = supMetaGeral[chave] || { financeira: "", positivacao: "" };
+            const totaisSupervisor = supTotais[s.id] || { financeira: 0, positivacao: 0 };
+            
+            return (
+              <div key={s.id} style={{ marginBottom: 24 }}>
+                <h4 style={{ margin: '10px 0' }}>{s.nome_completo || s.username}</h4>
+                <div className="meta-geral">
+                  <h4>Meta Geral do Supervisor</h4>
+                  <div className="meta-geral-inputs">
+                    <div>
+                      <label>Meta Financeira (R$)</label>
+                      <input type="number" value={metaGeralSupervisor.financeira} onChange={(e)=> setSupMetaGeral({ ...supMetaGeral, [chave]: { ...metaGeralSupervisor, financeira: e.target.value } }) } />
+                    </div>
+                    <div>
+                      <label>Meta de Positivacao (Qtd)</label>
+                      <input type="number" value={metaGeralSupervisor.positivacao} onChange={(e)=> setSupMetaGeral({ ...supMetaGeral, [chave]: { ...metaGeralSupervisor, positivacao: e.target.value } }) } />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="tabela-wrapper">
-              <table className="planilha">
-                <thead>
-                  <tr>
-                    <th>Fornecedor / Industria</th>
-                    <th className="num">Meta Financeira (R$)</th>
-                    <th className="num">Meta de Positivacao</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(supTabelas[s.id] || industrias.map(ind => ({ industria: ind, financeira: "", positivacao: "" })) ).map((linha, i) => (
-                    <tr key={i}>
-                      <td>{linha.industria}</td>
-                    <td className="num">
-                        <CurrencyInput
-                          value={parseFloat(linha.financeira || 0)}
-                          onChange={(val)=> handleChangeSup(s.id, i, 'financeira', val)}
-                        />
-                      </td>
-                      <td className="num">
-                        <NumericInput
-                          value={parseInt(linha.positivacao || 0)}
-                          onChange={(val)=> handleChangeSup(s.id, i, 'positivacao', val)}
-                        />
-                      </td>
+                <div className="tabela-wrapper">
+                <table className="planilha">
+                  <thead>
+                    <tr>
+                      <th>Fornecedor / Industria</th>
+                      <th className="num">Meta Financeira (R$)</th>
+                      <th className="num">Meta de Positivacao</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="linha-total">
-                    <td><b>Total</b></td>
-                    <td className="num">R${(supTotais[s.id]?.financeira || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
-                    <td className="num">{parseInt(supTotais[s.id]?.positivacao || 0).toLocaleString('pt-BR')}</td>
-                  </tr>
-                </tfoot>
-              </table>
-              </div>
+                  </thead>
+                  <tbody>
+                    {tabelaSupervisor.map((linha, i) => ( 
+                      <tr key={i}>
+                        <td>{linha.industria}</td>
+                        <td className="num">
+                          <CurrencyInput
+                            value={parseFloat(linha.financeira || 0)}
+                            onChange={(val)=> handleChangeSup(s.id, i, 'financeira', val)}
+                          />
+                        </td>
+                        <td className="num">
+                          <NumericInput
+                            value={parseInt(linha.positivacao || 0)}
+                            onChange={(val)=> handleChangeSup(s.id, i, 'positivacao', val)}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="linha-total">
+                      <td><b>Total</b></td>
+                      <td className="num">R${(totaisSupervisor.financeira).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                      <td className="num">{parseInt(totaisSupervisor.positivacao).toLocaleString('pt-BR')}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+                </div>
 
-              <div style={{ textAlign: 'center', marginTop: 15 }}>
-                <button className="btn-salvar" onClick={() => salvarMetasSupervisor(s.id)}>Salvar Metas de {s.username}</button>
+                <div style={{ textAlign: 'center', marginTop: 15 }}>
+                  <button className="btn-salvar" onClick={() => salvarMetasSupervisor(s.id)}>Salvar Metas de {s.nome_completo || s.username}</button>
+                </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </section>
     </div>

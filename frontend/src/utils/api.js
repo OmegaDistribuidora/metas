@@ -1,4 +1,4 @@
-const API_URL = "http://192.168.1.43:5000";
+const API_URL = "http://192.168.1.82:5000";
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 async function request(endpoint, method = "GET", body = null, token = true) {

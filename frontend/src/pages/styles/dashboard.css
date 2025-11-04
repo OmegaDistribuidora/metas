@@ -45,3 +45,28 @@ th {
   background-color: #132c4a;
   color: white;
 }
+
+.toast {
+  /* Posicionamento */
+  position: fixed; /* Fica fixo na tela */
+  top: 20px;       /* 20px do topo */
+  right: 20px;      /* 20px da direita */
+  z-index: 1000; /* Garante que fique acima de tudo */
+
+  /* Aparência */
+  padding: 15px 20px;
+  background-color: #28a745; /* Verde (sucesso) */
+  color: white;
+  border-radius: 5px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  min-width: 250px; /* Largura mínima */
+  
+  /* Comportamento */
+  cursor: pointer;
+  transition: opacity 0.3s ease;
+}
+
+/* Cor alternativa para erros */
+.toast.error {
+  background-color: #dc3545; /* Vermelho (erro) */
+}
